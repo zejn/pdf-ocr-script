@@ -1,0 +1,52 @@
+#!/bin/bash
+
+#set -x
+
+if [ "a$1" == "a" ]
+then
+	echo "missing input pdf file"
+	exit 1
+fi
+
+
+TESSDATA_PREFIX=`pwd`
+DIR=`date +%Y%m%d_%H%M%S`
+
+mkdir $DIR
+cd $DIR
+
+echo "processing $1"
+ln -s "../$1" orig.pdf
+
+
+pdftk orig.pdf burst
+
+for fn in *.pdf
+do
+	if [ "$fn" == "orig.pdf" ]
+	then
+		continue
+	fi
+
+	echo "extracting image from ${fn}"
+	IMGFILE=`basename ${fn} .pdf`
+	pdfimages -ccitt $fn "$IMGFILE"
+	
+	fax2tiff `cat ${IMGFILE}-000.params` ${IMGFILE}-000.ccitt -o ${IMGFILE}-000.tif
+	echo "OCR ${IMGFILE}"
+	TESSDATA_PREFIX=$TESSDATA_PREFIX tesseract -l slv ${IMGFILE}-000.tif out_${IMGFILE} pdf
+	TESSDATA_PREFIX=$TESSDATA_PREFIX tesseract -l slv ${IMGFILE}-000.tif out_${IMGFILE}
+
+done
+
+pdftk out_*.pdf cat output output.pdf
+cat out_*.txt >> output.txt
+
+cp output.pdf "../${1}_ocr.pdf"
+cp output.txt "../${1}_ocr.txt"
+
+#ls -al
+
+cd ..
+rm -rf $DIR
+
